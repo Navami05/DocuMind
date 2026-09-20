@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type SearchResult = {
+type ChatSource = {
   text: string;
   filename: string;
   page: number;
@@ -13,6 +13,7 @@ type SearchResult = {
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  sources?: ChatSource[];
 };
 
 export default function Home() {
@@ -25,7 +26,7 @@ export default function Home() {
 
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<ChatSource[]>([]);
   const [searching, setSearching] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -202,6 +203,7 @@ export default function Home() {
         {
           role: "assistant",
           content: generatedAnswer,
+          sources: data.results || [],
         },
       ];
 
@@ -383,17 +385,17 @@ export default function Home() {
             <h2 className="mt-1 text-xl font-semibold text-slate-900">
               Ask about your document
             </h2>
-            
+
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
               <span className="h-2 w-2 rounded-full bg-green-500" />
 
-                <span className="text-xs font-medium text-slate-600">
-                  {documents.length}{" "}
-                  {documents.length === 1
-                    ? "document"
-                    : "documents"}{" "}
-                  available
-                </span>
+              <span className="text-xs font-medium text-slate-600">
+                {documents.length}{" "}
+                {documents.length === 1
+                  ? "document"
+                  : "documents"}{" "}
+                available
+              </span>
             </div>
 
             <p className="mt-1 text-sm text-slate-500">
@@ -556,63 +558,63 @@ export default function Home() {
                         {message.content}
                       </p>
 
-                    </div>
+                      {message.role === "assistant" &&
+                        message.sources &&
+                        message.sources.length > 0 && (
+                          <div className="mt-4 border-t border-slate-200 pt-3">
 
-                  ))}
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-slate-500">
+                                Sources
+                              </span>
 
-                </div>
+                              <span className="text-xs text-slate-400">
+                                {message.sources.length}{" "}
+                                {message.sources.length === 1
+                                  ? "passage"
+                                  : "passages"}
+                              </span>
+                            </div>
 
-              </div>
-            )}
+                            <div className="mt-2 space-y-2">
 
-            {/* Sources */}
-            {results.length > 0 && (
-              <div className="mt-8">
+                              {message.sources.map(
+                                (source, sourceIndex) => (
 
-                <div className="flex items-center justify-between">
+                                  <div
+                                    key={`${source.filename}-${source.page}-${sourceIndex}`}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                                  >
 
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Sources
-                  </h2>
+                                    <div className="flex flex-wrap items-center gap-2">
 
-                  <span className="text-sm text-slate-500">
-                    {results.length} relevant passages
-                  </span>
+                                      <span className="text-xs font-medium text-slate-700">
+                                        📄 {source.filename}
+                                      </span>
 
-                </div>
+                                      <span className="text-xs text-slate-400">
+                                        Page {source.page}
+                                      </span>
 
-                <div className="mt-3 space-y-3">
+                                      <span className="text-xs text-slate-400">
+                                        •
+                                      </span>
 
-                  {results.map((result, index) => (
+                                      <span className="text-xs text-slate-500">
+                                        {source.section}
+                                      </span>
 
-                    <div
-                      key={`${result.filename}-${result.page}-${index}`}
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-                    >
+                                    </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                                  </div>
 
-                        <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">
-                          Source {index + 1}
-                        </span>
+                                )
+                              )}
 
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                          Page {result.page}
-                        </span>
+                            </div>
 
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                          {result.section}
-                        </span>
-
-                      </div>
-
-                      <p className="mt-3 text-xs font-medium text-slate-400">
-                        {result.filename}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
-                        {result.text}
-                      </p>
+                          </div>
+                        )}
 
                     </div>
 
