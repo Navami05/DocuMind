@@ -17,6 +17,10 @@ type ChatMessage = {
 };
 
 export default function Home() {
+  // ============================================================
+  // State
+  // ============================================================
+
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,6 +38,14 @@ export default function Home() {
     Record<string, ChatMessage[]>
   >({});
 
+  const [expandedSources, setExpandedSources] = useState<number | null>(
+    null
+  );
+
+  // ============================================================
+  // Load Documents
+  // ============================================================
+
   const loadDocuments = async () => {
     try {
       const response = await fetch(
@@ -45,11 +57,12 @@ export default function Home() {
       }
 
       const data = await response.json();
+      const loadedDocuments = data.documents || [];
 
-      setDocuments(data.documents || []);
+      setDocuments(loadedDocuments);
 
-      if (data.documents?.length > 0) {
-        const firstDocument = data.documents[0];
+      if (loadedDocuments.length > 0) {
+        const firstDocument = loadedDocuments[0];
 
         setSelectedDocument(firstDocument);
 
@@ -59,9 +72,13 @@ export default function Home() {
         });
       }
     } catch (error) {
-      console.error(error);
+      console.error("Failed to load documents:", error);
     }
   };
+
+  // ============================================================
+  // Load Saved Chat History
+  // ============================================================
 
   useEffect(() => {
     const savedChatHistory = localStorage.getItem(
@@ -73,12 +90,6 @@ export default function Home() {
         const parsedHistory = JSON.parse(savedChatHistory);
 
         setChatHistory(parsedHistory);
-
-        const savedDocument = selectedDocument;
-
-        if (savedDocument) {
-          setMessages(parsedHistory[savedDocument] || []);
-        }
       } catch (error) {
         console.error(
           "Failed to load saved chat history:",
@@ -90,6 +101,10 @@ export default function Home() {
     loadDocuments();
   }, []);
 
+  // ============================================================
+  // Save Chat History
+  // ============================================================
+
   useEffect(() => {
     if (Object.keys(chatHistory).length > 0) {
       localStorage.setItem(
@@ -98,6 +113,10 @@ export default function Home() {
       );
     }
   }, [chatHistory]);
+
+  // ============================================================
+  // Upload Document
+  // ============================================================
 
   const uploadFile = async () => {
     if (!file) {
@@ -110,6 +129,7 @@ export default function Home() {
     setAnswer("");
     setResults([]);
     setMessages([]);
+    setExpandedSources(null);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -146,8 +166,10 @@ export default function Home() {
       setMessages(
         chatHistory[data.filename] || []
       );
+
+      setFile(null);
     } catch (error) {
-      console.error(error);
+      console.error("Upload error:", error);
 
       setMessage(
         "Unable to upload the PDF. Make sure the backend server is running."
@@ -156,6 +178,10 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // ============================================================
+  // Ask Question
+  // ============================================================
 
   const askQuestion = async () => {
     if (!selectedDocument) {
@@ -191,8 +217,10 @@ export default function Home() {
       const generatedAnswer =
         data.answer || "No answer was found.";
 
+      const sources = data.results || [];
+
       setAnswer(generatedAnswer);
-      setResults(data.results || []);
+      setResults(sources);
 
       const newMessages: ChatMessage[] = [
         ...messages,
@@ -203,7 +231,7 @@ export default function Home() {
         {
           role: "assistant",
           content: generatedAnswer,
-          sources: data.results || [],
+          sources,
         },
       ];
 
@@ -215,8 +243,9 @@ export default function Home() {
       }));
 
       setQuery("");
+      setExpandedSources(null);
     } catch (error) {
-      console.error(error);
+      console.error("Search error:", error);
 
       setAnswer(
         "Something went wrong while searching. Make sure the backend server is running."
@@ -226,11 +255,16 @@ export default function Home() {
     }
   };
 
+  // ============================================================
+  // Clear Conversation
+  // ============================================================
+
   const clearConversation = () => {
     setQuery("");
     setAnswer("");
     setResults([]);
     setMessages([]);
+    setExpandedSources(null);
 
     if (selectedDocument) {
       setChatHistory((previousHistory) => ({
@@ -239,6 +273,10 @@ export default function Home() {
       }));
     }
   };
+
+  // ============================================================
+  // Delete Selected Document
+  // ============================================================
 
   const deleteSelectedDocument = async () => {
     if (!selectedDocument) {
@@ -264,6 +302,7 @@ export default function Home() {
       setAnswer("");
       setResults([]);
       setMessages([]);
+      setExpandedSources(null);
 
       setChatHistory((previousHistory) => {
         const updatedHistory = {
@@ -283,7 +322,7 @@ export default function Home() {
 
       setSelectedDocument("");
     } catch (error) {
-      console.error(error);
+      console.error("Delete error:", error);
 
       setMessage(
         "Unable to delete the selected document."
@@ -291,12 +330,49 @@ export default function Home() {
     }
   };
 
+  // ============================================================
+  // Document Selection
+  // ============================================================
+
+  const handleDocumentChange = (
+    documentName: string
+  ) => {
+    setSelectedDocument(documentName);
+    setAnswer("");
+    setResults([]);
+    setQuery("");
+    setExpandedSources(null);
+
+    setMessages(
+      chatHistory[documentName] || []
+    );
+  };
+
+  // ============================================================
+  // Toggle Sources
+  // ============================================================
+
+  const toggleSources = (messageIndex: number) => {
+    setExpandedSources((currentIndex) =>
+      currentIndex === messageIndex
+        ? null
+        : messageIndex
+    );
+  };
+
+  // ============================================================
+  // Render
+  // ============================================================
+
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-5xl">
 
-        {/* Header */}
-        <div className="mb-8">
+        {/* ======================================================
+            Header
+        ====================================================== */}
+
+        <header className="mb-8">
           <div className="flex items-center gap-3">
 
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-black text-xl text-white">
@@ -314,12 +390,18 @@ export default function Home() {
             </div>
 
           </div>
-        </div>
+        </header>
 
-        {/* Main Card */}
+        {/* ======================================================
+            Main Card
+        ====================================================== */}
+
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-          {/* Upload */}
+          {/* ====================================================
+              Step 1: Upload
+          ==================================================== */}
+
           <section className="border-b border-slate-200 p-6 sm:p-8">
 
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -334,13 +416,18 @@ export default function Home() {
               Upload a PDF to add it to your searchable document library.
             </p>
 
+            {/* File Input */}
+
             <div className="mt-5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-5">
 
               <input
                 type="file"
                 accept=".pdf"
                 onChange={(event) => {
-                  setFile(event.target.files?.[0] || null);
+                  setFile(
+                    event.target.files?.[0] || null
+                  );
+
                   setMessage("");
                 }}
                 className="block w-full cursor-pointer text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-black file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-slate-800"
@@ -357,6 +444,8 @@ export default function Home() {
 
             </div>
 
+            {/* Upload Button */}
+
             <button
               onClick={uploadFile}
               disabled={loading}
@@ -367,6 +456,8 @@ export default function Home() {
                 : "Upload PDF"}
             </button>
 
+            {/* Upload Status */}
+
             {message && (
               <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                 {message}
@@ -375,7 +466,10 @@ export default function Home() {
 
           </section>
 
-          {/* Document Selection + Questions */}
+          {/* ====================================================
+              Step 2: Questions
+          ==================================================== */}
+
           <section className="p-6 sm:p-8">
 
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -386,7 +480,10 @@ export default function Home() {
               Ask about your document
             </h2>
 
+            {/* Document Count */}
+
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+
               <span className="h-2 w-2 rounded-full bg-green-500" />
 
               <span className="text-xs font-medium text-slate-600">
@@ -396,16 +493,21 @@ export default function Home() {
                   : "documents"}{" "}
                 available
               </span>
+
             </div>
 
             <p className="mt-1 text-sm text-slate-500">
               Select a document and ask a question about its contents.
             </p>
 
-            {/* Document Selector */}
+            {/* ==================================================
+                Document Selector
+            ================================================== */}
+
             <div className="mt-5">
 
               <div className="mb-2 flex items-center justify-between">
+
                 <label className="text-sm font-medium text-slate-700">
                   Select document
                 </label>
@@ -415,22 +517,16 @@ export default function Home() {
                     Active document
                   </span>
                 )}
+
               </div>
 
               <select
                 value={selectedDocument}
-                onChange={(event) => {
-                  const newDocument = event.target.value;
-
-                  setSelectedDocument(newDocument);
-                  setAnswer("");
-                  setResults([]);
-                  setQuery("");
-
-                  setMessages(
-                    chatHistory[newDocument] || []
-                  );
-                }}
+                onChange={(event) =>
+                  handleDocumentChange(
+                    event.target.value
+                  )
+                }
                 className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
               >
                 {documents.length === 0 ? (
@@ -449,6 +545,8 @@ export default function Home() {
                 )}
               </select>
 
+              {/* Delete Button */}
+
               {selectedDocument && (
                 <button
                   onClick={deleteSelectedDocument}
@@ -460,7 +558,10 @@ export default function Home() {
 
             </div>
 
-            {/* Question */}
+            {/* ==================================================
+                Question Input
+            ================================================== */}
+
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
 
               <input
@@ -480,15 +581,22 @@ export default function Home() {
 
               <button
                 onClick={askQuestion}
-                disabled={searching || !selectedDocument}
+                disabled={
+                  searching || !selectedDocument
+                }
                 className="rounded-xl bg-black px-7 py-3 font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {searching ? "Searching..." : "Ask"}
+                {searching
+                  ? "Searching..."
+                  : "Ask"}
               </button>
 
             </div>
 
-            {/* Example Questions */}
+            {/* ==================================================
+                Example Questions
+            ================================================== */}
+
             <div className="mt-4">
 
               <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -505,7 +613,9 @@ export default function Home() {
                 ].map((question) => (
                   <button
                     key={question}
-                    onClick={() => setQuery(question)}
+                    onClick={() =>
+                      setQuery(question)
+                    }
                     className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 transition hover:border-slate-400 hover:bg-slate-50"
                   >
                     {question}
@@ -516,9 +626,14 @@ export default function Home() {
 
             </div>
 
-            {/* Conversation */}
+            {/* ==================================================
+                Conversation
+            ================================================== */}
+
             {messages.length > 0 && (
               <div className="mt-8">
+
+                {/* Conversation Header */}
 
                 <div className="flex items-center justify-between gap-4">
 
@@ -535,90 +650,131 @@ export default function Home() {
 
                 </div>
 
+                {/* Messages */}
+
                 <div className="mt-3 space-y-4">
 
-                  {messages.map((message, index) => (
+                  {messages.map(
+                    (message, index) => (
+                      <div
+                        key={index}
+                        className={
+                          message.role === "user"
+                            ? "ml-auto max-w-3xl rounded-xl bg-black p-4 text-white shadow-sm"
+                            : "max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-800 shadow-sm"
+                        }
+                      >
 
-                    <div
-                      key={index}
-                      className={
-                        message.role === "user"
-                          ? "ml-auto max-w-3xl rounded-xl bg-black p-4 text-white shadow-sm"
-                          : "max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-800 shadow-sm"
-                      }
-                    >
+                        {/* Message Role */}
 
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">
-                        {message.role === "user"
-                          ? "You"
-                          : "AI Assistant"}
-                      </p>
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-60">
+                          {message.role === "user"
+                            ? "You"
+                            : "AI Assistant"}
+                        </p>
 
-                      <p className="whitespace-pre-line text-sm leading-7">
-                        {message.content}
-                      </p>
+                        {/* Message Content */}
 
-                      {message.role === "assistant" &&
-                        message.sources &&
-                        message.sources.length > 0 && (
-                          <div className="mt-4 border-t border-slate-200 pt-3">
+                        <p className="whitespace-pre-line text-sm leading-7">
+                          {message.content}
+                        </p>
 
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-slate-500">
-                                Sources
-                              </span>
+                        {/* ==================================================
+                            Collapsible Sources
+                        ================================================== */}
 
-                              <span className="text-xs text-slate-400">
-                                {message.sources.length}{" "}
-                                {message.sources.length === 1
-                                  ? "passage"
-                                  : "passages"}
-                              </span>
-                            </div>
+                        {message.role === "assistant" &&
+                          message.sources &&
+                          message.sources.length > 0 && (
+                            <div className="mt-4 border-t border-slate-200 pt-3">
 
-                            <div className="mt-2 space-y-2">
+                              {/* Source Toggle */}
 
-                              {message.sources.map(
-                                (source, sourceIndex) => (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  toggleSources(index)
+                                }
+                                className="flex w-full items-center justify-between text-left"
+                              >
+                                <span className="text-xs font-semibold text-slate-500">
+                                  Sources
+                                </span>
 
-                                  <div
-                                    key={`${source.filename}-${source.page}-${sourceIndex}`}
-                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
-                                  >
+                                <span className="flex items-center gap-2 text-xs text-slate-400">
 
-                                    <div className="flex flex-wrap items-center gap-2">
+                                  {message.sources.length}{" "}
+                                  {message.sources.length === 1
+                                    ? "passage"
+                                    : "passages"}
 
-                                      <span className="text-xs font-medium text-slate-700">
-                                        📄 {source.filename}
-                                      </span>
+                                  <span className="text-slate-500">
+                                    {expandedSources ===
+                                    index
+                                      ? "▲"
+                                      : "▼"}
+                                  </span>
 
-                                      <span className="text-xs text-slate-400">
-                                        Page {source.page}
-                                      </span>
+                                </span>
+                              </button>
 
-                                      <span className="text-xs text-slate-400">
-                                        •
-                                      </span>
+                              {/* Source Cards */}
 
-                                      <span className="text-xs text-slate-500">
-                                        {source.section}
-                                      </span>
+                              {expandedSources ===
+                                index && (
+                                <div className="mt-2 space-y-2">
 
-                                    </div>
+                                  {message.sources.map(
+                                    (
+                                      source,
+                                      sourceIndex
+                                    ) => (
+                                      <div
+                                        key={`${source.filename}-${source.page}-${sourceIndex}`}
+                                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5"
+                                      >
 
-                                  </div>
+                                        <div className="flex flex-wrap items-center gap-2">
 
-                                )
+                                          <span className="text-xs font-medium text-slate-700">
+                                            📄{" "}
+                                            {
+                                              source.filename
+                                            }
+                                          </span>
+
+                                          <span className="text-xs text-slate-400">
+                                            Page{" "}
+                                            {
+                                              source.page
+                                            }
+                                          </span>
+
+                                          <span className="text-xs text-slate-400">
+                                            •
+                                          </span>
+
+                                          <span className="text-xs text-slate-500">
+                                            {
+                                              source.section
+                                            }
+                                          </span>
+
+                                        </div>
+
+                                      </div>
+                                    )
+                                  )}
+
+                                </div>
                               )}
 
                             </div>
+                          )}
 
-                          </div>
-                        )}
-
-                    </div>
-
-                  ))}
+                      </div>
+                    )
+                  )}
 
                 </div>
 
@@ -628,6 +784,10 @@ export default function Home() {
           </section>
 
         </div>
+
+        {/* ======================================================
+            Footer
+        ====================================================== */}
 
         <p className="mt-6 text-center text-xs text-slate-400">
           Local RAG pipeline • Semantic retrieval • Cross-encoder reranking
